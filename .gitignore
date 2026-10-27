@@ -1,0 +1,10 @@
+node_modules/
+backend/data/
+*.log
+.DS_Store
+dist/
+
+# Ключи подписи Android — хранить отдельно, в репозиторий не класть
+app/android/key.properties
+*.jks
+*.keystore

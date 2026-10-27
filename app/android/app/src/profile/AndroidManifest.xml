@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Только для profile-сборок (тестирование на эмуляторе с локальным сервером) -->
+    <application android:usesCleartextTraffic="true"/>
+</manifest>

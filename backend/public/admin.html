@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Супер Няня — модератор</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --primary: #1D3557; --pink: #E63946; --warm: #F4A261; --bg: #FCFAFA;
+    --card: #fff; --text: #1D3557; --muted: #6b7a90; --line: #e7e9ee; --ok: #2a9d5b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, input, select, textarea { font: inherit; }
+  .hidden { display: none !important; }
+
+  #login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .login-card { width: 100%; max-width: 360px; background: var(--card); border-radius: 20px; padding: 28px; box-shadow: 0 10px 30px rgba(29,53,87,.08); text-align: center; }
+  .logo { width: 56px; height: 56px; border-radius: 18px; background: var(--primary); display: inline-grid; place-items: center; }
+  .login-card h1 { font-size: 22px; margin: 14px 0 4px; }
+  .login-card p { color: var(--muted); margin: 0 0 18px; }
+
+  input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--text); }
+  input:focus, textarea:focus { outline: 2px solid rgba(29,53,87,.25); border-color: var(--primary); }
+  .btn { border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer; background: var(--primary); color: #fff; font-weight: 600; white-space: nowrap; }
+  .btn.pink { background: var(--pink); }
+  .btn.ok { background: var(--ok); }
+  .btn.ghost { background: transparent; color: var(--primary); border: 1px solid var(--line); }
+  .btn.sm { padding: 5px 10px; font-size: 13px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .err { color: var(--pink); min-height: 20px; margin-top: 8px; }
+
+  header { position: sticky; top: 0; z-index: 1000; background: var(--primary); color: #fff; display: flex; align-items: center; gap: 16px; padding: 10px 20px; }
+  header .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  nav { display: flex; gap: 4px; overflow-x: auto; flex: 1; }
+  nav button { background: transparent; border: 0; color: rgba(255,255,255,.75); padding: 8px 12px; border-radius: 10px; cursor: pointer; white-space: nowrap; position: relative; }
+  nav button.active { background: rgba(255,255,255,.14); color: #fff; }
+  .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--pink); color: #fff; font-size: 11px; line-height: 18px; text-align: center; margin-left: 4px; }
+  header .logout { background: transparent; border: 1px solid rgba(255,255,255,.3); color: #fff; }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
+  h2 { font-size: 20px; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .tile { background: var(--card); border-radius: 16px; padding: 16px; border: 1px solid var(--line); }
+  .tile .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .v { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .tile.alert { border-color: var(--pink); background: #fff5f5; }
+  .tile.alert .v { color: var(--pink); }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; background: #fafbfc; }
+  tr:last-child td { border-bottom: 0; }
+  tr.click { cursor: pointer; }
+  tr.click:hover td { background: #f7f8fb; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef1f6; color: var(--primary); }
+  .pill.pending { background: #fff4e6; color: #b35c00; }
+  .pill.approved, .pill.completed, .pill.paid { background: #e8f6ee; color: var(--ok); }
+  .pill.rejected, .pill.cancelled, .pill.blocked { background: #fdecee; color: var(--pink); }
+  .pill.in_progress, .pill.on_the_way, .pill.arrived, .pill.accepted { background: #e9f0fb; color: #2456a4; }
+  .muted { color: var(--muted); }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input, .toolbar select { max-width: 280px; }
+
+  .split { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 16px; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+  .detail { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .detail h3 { margin: 0 0 4px; font-size: 18px; }
+  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; margin: 14px 0; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 12px 0; }
+  .doc { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fafbfc; }
+  .doc .img { height: 130px; display: grid; place-items: center; background: #eef1f6; cursor: zoom-in; }
+  .doc img { width: 100%; height: 130px; object-fit: cover; display: block; }
+  .doc .cap { padding: 6px 10px; font-size: 12px; font-weight: 600; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .checks label { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
+  .checks input { width: auto; }
+
+  #map { height: 420px; border-radius: 16px; border: 1px solid var(--line); margin-bottom: 16px; }
+  .sos-new td { background: #fff5f5; }
+
+  .lightbox { position: fixed; inset: 0; background: rgba(10,20,35,.85); display: grid; place-items: center; z-index: 2000; padding: 20px; cursor: zoom-out; }
+  .lightbox img { max-width: 100%; max-height: 90vh; border-radius: 12px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 10px 16px; border-radius: 12px; z-index: 3000; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+  .toast.error { background: var(--pink); }
+  .form-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .form-row input { max-width: 240px; }
+</style>
+</head>
+<body>
+
+<section id="login">
+  <form class="login-card" id="loginForm">
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 24 24"><path fill="#E63946" d="M12 21s-7.5-4.6-9.5-9.2C1.2 8.6 3.2 5 6.6 5c2 0 3.6 1.1 4.4 2.6h2C13.8 6.1 15.4 5 17.4 5c3.4 0 5.4 3.6 4.1 6.8C19.5 16.4 12 21 12 21z"/><circle cx="18.5" cy="4.5" r="2.5" fill="#F4A261"/></svg></div>
+    <h1>Супер Няня</h1>
+    <p>Панель модератора</p>
+    <input type="password" id="password" placeholder="Пароль администратора" autocomplete="current-password" required>
+    <div class="err" id="loginErr"></div>
+    <button class="btn" style="width:100%;margin-top:6px">Войти</button>
+  </form>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24"><path fill="#E63946" d="M12 21s-7.5-4.6-9.5-9.2C1.2 8.6 3.2 5 6.6 5c2 0 3.6 1.1 4.4 2.6h2C13.8 6.1 15.4 5 17.4 5c3.4 0 5.4 3.6 4.1 6.8C19.5 16.4 12 21 12 21z"/><circle cx="18.5" cy="4.5" r="2.5" fill="#F4A261"/></svg>
+      Супер Няня
+    </div>
+    <nav id="nav">
+      <button data-tab="overview" class="active">Обзор</button>
+      <button data-tab="kyc">Верификация <span class="badge hidden" id="kycBadge"></span></button>
+      <button data-tab="sos">SOS <span class="badge hidden" id="sosBadge"></span></button>
+      <button data-tab="orders">Заказы</button>
+      <button data-tab="users">Пользователи</button>
+      <button data-tab="companies">B2B</button>
+      <button data-tab="payouts">Выплаты</button>
+    </nav>
+    <button class="btn sm logout" id="logout">Выйти</button>
+  </header>
+  <main id="main"></main>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n) => (n ?? 0).toLocaleString('ru-RU') + ' сум';
+const dt = (ms) => (ms ? new Date(ms).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+const STATUS = {
+  draft: 'Черновик', pending: 'На проверке', approved: 'Одобрена', rejected: 'Отклонена',
+  accepted: 'Принят', on_the_way: 'В пути', arrived: 'На месте', in_progress: 'В работе', completed: 'Завершён',
+  cancelled: 'Отменён', declined: 'Отклонён', expired: 'Истёк', paid: 'Выплачено',
+};
+const DOC = { photo: 'Фото профиля', passport: 'Паспорт', selfie: 'Селфи с паспортом', medbook: 'Медкнижка', police: 'Справка о несудимости', cert: 'Сертификат' };
+const pill = (s) => `<span class="pill ${esc(s)}">${esc(STATUS[s] || s)}</span>`;
+
+let token = localStorage.getItem('adminToken');
+let tab = 'overview';
+let lastSosCount = null;
+let map = null;
+const blobCache = new Map();
+
+async function api(method, url, body) {
+  const r = await fetch(url, {
+    method,
+    headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) { logout(); throw new Error('Сессия истекла'); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Ошибка ' + r.status);
+  return data;
+}
+
+function toast(msg, error) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (error ? ' error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+async function fileUrl(id) {
+  if (blobCache.has(id)) return blobCache.get(id);
+  const r = await fetch('/api/files/' + id, { headers: { Authorization: 'Bearer ' + token } });
+  if (!r.ok) throw new Error('Файл недоступен');
+  const url = URL.createObjectURL(await r.blob());
+  blobCache.set(id, url);
+  return url;
+}
+
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    [0, 0.35, 0.7].forEach((t) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.25, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch {}
+}
+
+// ---------- вход ----------
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#loginErr').textContent = '';
+  try {
+    const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#password').value }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Ошибка входа');
+    token = data.access;
+    localStorage.setItem('adminToken', token);
+    start();
+  } catch (err) { $('#loginErr').textContent = err.message; }
+});
+
+function logout() {
+  token = null;
+  localStorage.removeItem('adminToken');
+  $('#app').classList.add('hidden');
+  $('#login').classList.remove('hidden');
+}
+$('#logout').onclick = logout;
+
+$('#nav').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]');
+  if (!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('active', x === b));
+  render();
+});
+
+function start() {
+  $('#login').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  render();
+  poll();
+}
+
+// Фоновая проверка: новые SOS и анкеты на проверке.
+async function poll() {
+  if (!token) return;
+  try {
+    const s = await api('GET', '/api/admin/stats');
+    const kb = $('#kycBadge'); kb.textContent = s.nannies.pending; kb.classList.toggle('hidden', !s.nannies.pending);
+    const sb = $('#sosBadge'); sb.textContent = s.sos_open; sb.classList.toggle('hidden', !s.sos_open);
+    if (lastSosCount !== null && s.sos_open > lastSosCount) {
+      beep();
+      toast('🚨 Новый SOS-сигнал!', true);
+      if (tab === 'sos') render();
+    }
+    lastSosCount = s.sos_open;
+  } catch {}
+  setTimeout(poll, 8000);
+}
+
+async function render() {
+  const main = $('#main');
+  if (map) { map.remove(); map = null; }
+  main.innerHTML = '<div class="empty">Загрузка…</div>';
+  try {
+    await VIEWS[tab](main);
+  } catch (e) {
+    main.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+
+const VIEWS = {
+  async overview(main) {
+    const s = await api('GET', '/api/admin/stats');
+    main.innerHTML = `
+      <h2>Обзор ${s.demo ? '<span class="pill">демо-режим включён</span>' : ''}</h2>
+      <div class="tiles">
+        <div class="tile ${s.sos_open ? 'alert' : ''}"><div class="k">Открытые SOS</div><div class="v">${s.sos_open}</div></div>
+        <div class="tile"><div class="k">Анкеты на проверке</div><div class="v">${s.nannies.pending}</div></div>
+        <div class="tile"><div class="k">Няни онлайн</div><div class="v">${s.nannies.online}</div></div>
+        <div class="tile"><div class="k">Одобрено нянь</div><div class="v">${s.nannies.approved}</div></div>
+        <div class="tile"><div class="k">Родителей</div><div class="v">${s.users.parents}</div></div>
+        <div class="tile"><div class="k">Активные заказы</div><div class="v">${s.orders.active}</div></div>
+        <div class="tile"><div class="k">Заказов сегодня</div><div class="v">${s.orders.today}</div></div>
+        <div class="tile"><div class="k">Завершено всего</div><div class="v">${s.orders.completed}</div></div>
+        <div class="tile"><div class="k">Оборот (GMV)</div><div class="v">${money(s.money.gmv)}</div></div>
+        <div class="tile"><div class="k">Комиссия платформы 12%</div><div class="v">${money(s.money.revenue)}</div></div>
+        <div class="tile"><div class="k">Из них B2B</div><div class="v">${money(s.money.b2b)}</div></div>
+        <div class="tile"><div class="k">Ожидают выплаты</div><div class="v">${money(s.money.payouts_pending)}</div></div>
+      </div>`;
+  },
+
+  async kyc(main, selectedId) {
+    const status = VIEWS.kyc.status || 'pending';
+    const list = await api('GET', '/api/admin/nannies' + (status === 'all' ? '' : '?status=' + status));
+    main.innerHTML = `
+      <h2>Верификация нянь</h2>
+      <div class="toolbar">
+        <select id="kycStatus">
+          ${['pending', 'approved', 'rejected', 'draft', 'all'].map((s) => `<option value="${s}" ${s === status ? 'selected' : ''}>${s === 'all' ? 'Все' : STATUS[s]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="split">
+        <div class="panel">${list.length ? `<table><tbody>${list.map((n) => `
+          <tr class="click" data-id="${n.id}"><td><b>${esc(n.full_name || 'Без имени')}</b><div class="muted">${esc(n.phone)} · ${dt(n.submitted_at || n.created_at)}</div></td><td>${pill(n.status)}</td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty">Нет анкет</div>'}</div>
+        <div id="kycDetail"><div class="detail empty">Выберите анкету слева</div></div>
+      </div>`;
+    $('#kycStatus').onchange = (e) => { VIEWS.kyc.status = e.target.value; render(); };
+    main.querySelectorAll('tr[data-id]').forEach((tr) => (tr.onclick = () => showNanny(tr.dataset.id)));
+    if (list.length) showNanny(selectedId || list[0].id);
+  },
+
+  async sos(main) {
+    const list = await api('GET', '/api/admin/sos');
+    main.innerHTML = `
+      <h2>SOS-сигналы</h2>
+      <div id="map"></div>
+      <div class="panel table-wrap">${list.length ? `<table>
+        <thead><tr><th>Время</th><th>Кто</th><th>Заказ</th><th>Координаты</th><th></th></tr></thead>
+        <tbody>${list.map((s) => `
+          <tr class="${s.resolved ? '' : 'sos-new'}">
+            <td>${dt(s.created_at)}</td>
+            <td><b>${esc(s.user.name || '—')}</b> <span class="muted">(${s.user.role === 'parent' ? 'родитель' : 'няня'})</span><br><a href="tel:${esc(s.user.phone)}">${esc(s.user.phone)}</a></td>
+            <td>${s.order ? `№${s.order.id} ${pill(s.order.status)}<br><span class="muted">${esc(s.order.address || '')}</span><br>
+                Родитель: ${esc(s.order.parent?.name || '')} <a href="tel:${esc(s.order.parent?.phone)}">${esc(s.order.parent?.phone || '')}</a><br>
+                Няня: ${esc(s.order.nanny?.name || '')} <a href="tel:${esc(s.order.nanny?.phone)}">${esc(s.order.nanny?.phone || '')}</a>` : '—'}</td>
+            <td>${s.lat != null ? `<a target="_blank" rel="noopener" href="https://maps.google.com/?q=${s.lat},${s.lng}">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</a>` : '—'}</td>
+            <td>${s.resolved ? `<span class="muted">Закрыт ${dt(s.resolved_at)}</span>` : `<button class="btn sm ok" data-resolve="${s.id}">Закрыть</button>`}</td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">Сигналов не было</div>'}
+      </div>`;
+    map = L.map('map').setView([41.3111, 69.2797], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    const pts = [];
+    for (const s of list) {
+      if (s.lat == null) continue;
+      pts.push([s.lat, s.lng]);
+      L.circleMarker([s.lat, s.lng], { radius: 10, color: s.resolved ? '#6b7a90' : '#E63946', fillOpacity: 0.7 })
+        .addTo(map).bindPopup(`<b>SOS #${s.id}</b><br>${esc(s.user.name || '')} ${esc(s.user.phone)}<br>${dt(s.created_at)}`);
+    }
+    const open = list.filter((s) => !s.resolved && s.lat != null);
+    if (open.length) map.setView([open[0].lat, open[0].lng], 15);
+    else if (pts.length) map.fitBounds(pts, { maxZoom: 14 });
+    main.querySelectorAll('[data-resolve]').forEach((b) => (b.onclick = async () => {
+      await api('POST', `/api/admin/sos/${b.dataset.resolve}/resolve`);
+      toast('Сигнал закрыт'); render();
+    }));
+  },
+
+  async orders(main) {
+    const status = VIEWS.orders.status || '';
+    const list = await api('GET', '/api/admin/orders' + (status ? '?status=' + status : ''));
+    main.innerHTML = `
+      <h2>Заказы</h2>
+      <div class="toolbar"><select id="ordStatus">
+        <option value="">Все статусы</option>
+        ${['pending', 'accepted', 'on_the_way', 'arrived', 'in_progress', 'completed', 'cancelled', 'declined', 'expired'].map((s) => `<option value="${s}" ${s === status ? 'selected' : ''}>${STATUS[s]}</option>`).join('')}
+      </select></div>
+      <div class="panel table-wrap">${list.length ? `<table>
+        <thead><tr><th>№</th><th>Создан</th><th>Родитель</th><th>Няня</th><th>Адрес</th><th>Статус</th><th>Оплата</th><th>Сумма</th></tr></thead>
+        <tbody>${list.map((o) => `<tr>
+          <td>${o.id}</td><td>${dt(o.created_at)}</td>
+          <td>${esc(o.parent.name || '—')}</td>
+          <td>${esc(o.nanny.name || '—')} ${o.nanny.is_demo ? '<span class="pill">демо</span>' : ''}</td>
+          <td>${esc(o.address || '')}<div class="muted">${o.children_count} дет. ${esc(o.children_ages || '')}</div></td>
+          <td>${pill(o.status)}</td>
+          <td>${o.corporate ? `<span class="pill">B2B</span> ${esc(o.company || '')}` : 'Карта'}${o.payment ? `<div class="muted">${esc({ held: 'холд', charged: 'списано', released: 'холд снят' }[o.payment.status] || o.payment.status)}</div>` : ''}</td>
+          <td>${o.total ? `${money(o.total)}<div class="muted">комиссия ${money(o.commission)}</div>` : `<span class="muted">холд ${money(o.hold_amount)}</span>`}</td>
+        </tr>`).join('')}</tbody></table>` : '<div class="empty">Заказов нет</div>'}</div>`;
+    $('#ordStatus').onchange = (e) => { VIEWS.orders.status = e.target.value; render(); };
+  },
+
+  async users(main) {
+    const q = VIEWS.users.q || '';
+    const list = await api('GET', '/api/admin/users' + (q ? '?q=' + encodeURIComponent(q) : ''));
+    main.innerHTML = `
+      <h2>Пользователи</h2>
+      <form class="toolbar" id="userSearch"><input id="q" placeholder="Телефон или имя" value="${esc(q)}"><button class="btn">Найти</button></form>
+      <div class="panel table-wrap">${list.length ? `<table>
+        <thead><tr><th>ID</th><th>Имя</th><th>Телефон</th><th>Роль</th><th>Компания</th><th>Регистрация</th><th></th></tr></thead>
+        <tbody>${list.map((u) => `<tr>
+          <td>${u.id}</td><td>${esc(u.name || '—')}</td><td>${esc(u.phone)}</td>
+          <td>${u.role === 'parent' ? 'Родитель' : u.role === 'nanny' ? 'Няня' : '<span class="muted">не выбрана</span>'}</td>
+          <td>${esc(u.company || '—')}</td><td>${dt(u.created_at)}</td>
+          <td>${u.blocked ? `<button class="btn sm ghost" data-unblock="${u.id}">Разблокировать</button>` : `<button class="btn sm pink" data-block="${u.id}">Заблокировать</button>`}</td>
+        </tr>`).join('')}</tbody></table>` : '<div class="empty">Никого не найдено</div>'}</div>`;
+    $('#userSearch').onsubmit = (e) => { e.preventDefault(); VIEWS.users.q = $('#q').value.trim(); render(); };
+    main.querySelectorAll('[data-block],[data-unblock]').forEach((b) => (b.onclick = async () => {
+      const blocked = Boolean(b.dataset.block);
+      if (blocked && !confirm('Заблокировать пользователя? Он сразу потеряет доступ.')) return;
+      await api('POST', `/api/admin/users/${b.dataset.block || b.dataset.unblock}/block`, { blocked });
+      toast(blocked ? 'Пользователь заблокирован' : 'Пользователь разблокирован'); render();
+    }));
+  },
+
+  async companies(main) {
+    const list = await api('GET', '/api/admin/companies');
+    main.innerHTML = `
+      <h2>B2B: корпоративные клиенты</h2>
+      <p class="muted">Сотрудник вводит код компании в профиле приложения — после этого ему доступна оплата с корпоративного счёта.</p>
+      <form class="form-row" id="newCompany">
+        <input id="cName" placeholder="Название компании" required>
+        <input id="cCode" placeholder="Код (например UZUM2026)" required pattern="[A-Za-z0-9_\\-]{3,20}">
+        <button class="btn">Добавить</button>
+      </form>
+      <div class="panel table-wrap">${list.length ? `<table>
+        <thead><tr><th>Компания</th><th>Код</th><th>Сотрудников</th><th>Заказов</th><th>К оплате (счёт)</th></tr></thead>
+        <tbody>${list.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><code>${esc(c.code)}</code></td><td>${c.employees}</td><td>${c.orders}</td><td>${money(c.spent)}</td></tr>`).join('')}</tbody>
+      </table>` : '<div class="empty">Компаний пока нет</div>'}</div>`;
+    $('#newCompany').onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api('POST', '/api/admin/companies', { name: $('#cName').value, code: $('#cCode').value });
+        toast('Компания добавлена'); render();
+      } catch (err) { toast(err.message, true); }
+    };
+  },
+
+  async payouts(main) {
+    const list = await api('GET', '/api/admin/withdrawals');
+    main.innerHTML = `
+      <h2>Заявки на вывод средств</h2>
+      <div class="panel table-wrap">${list.length ? `<table>
+        <thead><tr><th>Дата</th><th>Няня</th><th>Карта</th><th>Сумма</th><th>Статус</th><th></th></tr></thead>
+        <tbody>${list.map((w) => `<tr>
+          <td>${dt(w.created_at)}</td><td>${esc(w.full_name)}<div class="muted">${esc(w.phone)}</div></td><td>${esc(w.card_mask)}</td>
+          <td><b>${money(w.amount)}</b></td><td>${pill(w.status)}</td>
+          <td>${w.status === 'pending' ? `<button class="btn sm ok" data-paid="${w.id}">Выплачено</button> <button class="btn sm ghost" data-reject="${w.id}">Отклонить</button>` : `<span class="muted">${dt(w.processed_at)}</span>`}</td>
+        </tr>`).join('')}</tbody></table>` : '<div class="empty">Заявок нет</div>'}</div>`;
+    main.querySelectorAll('[data-paid],[data-reject]').forEach((b) => (b.onclick = async () => {
+      const action = b.dataset.paid ? 'paid' : 'reject';
+      if (action === 'reject' && !confirm('Отклонить заявку? Деньги вернутся на баланс няни.')) return;
+      await api('POST', `/api/admin/withdrawals/${b.dataset.paid || b.dataset.reject}/${action}`);
+      toast('Готово'); render();
+    }));
+  },
+};
+
+async function showNanny(id) {
+  document.querySelectorAll('tr[data-id]').forEach((tr) => (tr.style.background = tr.dataset.id == id ? '#eef1f6' : ''));
+  const box = $('#kycDetail');
+  box.innerHTML = '<div class="detail empty">Загрузка…</div>';
+  const n = await api('GET', '/api/admin/nannies/' + id);
+  box.innerHTML = `
+    <div class="detail">
+      <h3>${esc(n.full_name || 'Без имени')} ${pill(n.status)}</h3>
+      <div class="muted">${esc(n.phone)}</div>
+      <div class="kv">
+        <div>Возраст</div><div>${n.age ?? '—'}</div>
+        <div>Опыт</div><div>${n.experience ?? '—'} лет</div>
+        <div>Стоимость</div><div>${n.price ? money(n.price) + ' / час' : '—'}</div>
+        <div>Расписание</div><div>${esc(n.schedule || '—')}</div>
+        <div>О себе</div><div>${esc(n.about || '—')}</div>
+        <div>Рейтинг</div><div>${n.rating ?? '—'} (${n.reviews_count} отз.), заказов: ${n.orders_done}</div>
+        <div>Отправлена</div><div>${dt(n.submitted_at)}</div>
+        ${n.reject_reason ? `<div>Причина отказа</div><div>${esc(n.reject_reason)}</div>` : ''}
+      </div>
+      <b>Документы</b>
+      <div class="docs">${n.docs.length ? n.docs.map((d) => `
+        <div class="doc"><div class="img" data-doc="${d.id}" data-mime="${esc(d.mime)}">${d.mime === 'application/pdf' ? 'PDF' : '…'}</div><div class="cap">${esc(DOC[d.kind] || d.kind)}</div></div>`).join('') : '<span class="muted">Документы не загружены</span>'}
+      </div>
+      ${n.status === 'pending' || n.status === 'rejected' || n.status === 'approved' ? `
+      <div class="checks">
+        <label><input type="checkbox" id="medOk" ${n.status !== 'approved' || n.med_ok ? 'checked' : ''}> Медкнижка проверена</label>
+        <label><input type="checkbox" id="policeOk" ${n.status !== 'approved' || n.police_ok ? 'checked' : ''}> Справка МВД проверена</label>
+      </div>
+      <div class="actions">
+        <button class="btn ok" id="approve">${n.status === 'approved' ? 'Обновить отметки' : 'Одобрить'}</button>
+        <input id="reason" placeholder="Причина отказа" style="max-width:260px">
+        <button class="btn pink" id="reject">Отклонить</button>
+      </div>` : ''}
+    </div>`;
+  box.querySelectorAll('[data-doc]').forEach(async (el) => {
+    try {
+      const url = await fileUrl(el.dataset.doc);
+      if (el.dataset.mime === 'application/pdf') {
+        el.innerHTML = `<a href="${url}" target="_blank">Открыть PDF</a>`;
+      } else {
+        el.innerHTML = `<img src="${url}" alt="">`;
+        el.onclick = () => {
+          const lb = document.createElement('div');
+          lb.className = 'lightbox';
+          lb.innerHTML = `<img src="${url}">`;
+          lb.onclick = () => lb.remove();
+          document.body.appendChild(lb);
+        };
+      }
+    } catch { el.textContent = 'Ошибка'; }
+  });
+  const approve = $('#approve');
+  if (approve) approve.onclick = async () => {
+    await api('POST', `/api/admin/nannies/${id}/approve`, { med_ok: $('#medOk').checked, police_ok: $('#policeOk').checked });
+    toast('Няня одобрена'); VIEWS.kyc($("#main"), id);
+  };
+  const reject = $('#reject');
+  if (reject) reject.onclick = async () => {
+    const reason = $('#reason').value.trim();
+    if (reason.length < 3) return toast('Укажите причину отказа', true);
+    try {
+      await api('POST', `/api/admin/nannies/${id}/reject`, { reason });
+      toast('Анкета отклонена'); VIEWS.kyc($('#main'), id);
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
+if (token) start();
+</script>
+</body>
+</html>

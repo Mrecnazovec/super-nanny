@@ -1,0 +1,14 @@
+{
+  "name": "super-nanny-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Лёгкий бэкенд «Супер Няня»: Node.js без внешних зависимостей + встроенный SQLite",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "smoke": "node --disable-warning=ExperimentalWarning test/smoke.js"
+  }
+}
